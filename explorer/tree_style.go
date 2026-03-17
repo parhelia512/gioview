@@ -279,7 +279,7 @@ func (eitem *EntryNavItem) Children() ([]navi.NavItem, bool) {
 func (eitem *EntryNavItem) buildChildren(sync bool) {
 	eitem.children = eitem.children[:0]
 	if sync {
-		err := eitem.state.Refresh(hiddenFileFilter)
+		err := eitem.state.Refresh(nil)
 		if err != nil {
 			log.Println(err)
 		}

@@ -158,7 +158,7 @@ func (n *EntryNode) Children() []*EntryNode {
 	}
 
 	if n.children == nil {
-		n.Refresh(hiddenFileFilter)
+		n.Refresh(nil)
 	}
 
 	return n.children
@@ -237,7 +237,7 @@ func (n *EntryNode) Copy(nodePath string) error {
 		}
 	}
 
-	return n.Refresh(hiddenFileFilter)
+	return n.Refresh(nil)
 }
 
 // Move moves the file at nodePath to the current folder.
@@ -264,10 +264,10 @@ func (n *EntryNode) Move(nodePath string) error {
 	// if nodePath is a descendant of the root tree, refresh its parent to clean dirty nodes.
 	parent := findNodeInTree(n, filepath.Dir(nodePath))
 	if parent != nil && parent != n {
-		parent.Refresh(hiddenFileFilter)
+		parent.Refresh(nil)
 	}
 
-	return n.Refresh(hiddenFileFilter)
+	return n.Refresh(nil)
 }
 
 func (n *EntryNode) exists(name string) bool {
@@ -295,9 +295,9 @@ func (n *EntryNode) UpdateName(newName string) error {
 		n.Path = filepath.Clean(newPath)
 		st, _ := os.Stat(n.Path)
 		n.FileInfo = st
-		
+
 		if len(n.children) > 0 {
-			n.Refresh(hiddenFileFilter)
+			n.Refresh(nil)
 		}
 	}()
 
@@ -338,39 +338,57 @@ func (n *EntryNode) Refresh(filterFunc EntryFilter) error {
 		return nil
 	}
 
-	n.children = n.children[:0]
+	if filterFunc == nil {
+		filterFunc = hiddenFileFilter
+	}
 
-	err := filepath.Walk(n.Path, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Println("file/folder skipped: ", path, err)
-			return filepath.SkipDir
-		}
+	existingNodes := make(map[string]*EntryNode, len(n.children))
+	for _, child := range n.children {
+		existingNodes[filepath.Base(child.Path)] = child
+	}
 
-		if path == n.Path {
-			return nil
-		}
-
-		// only direct children dir is walked.
-		if filepath.Dir(path) != n.Path {
-			return filepath.SkipDir
-		}
-
-		if filterFunc != nil && filterFunc(info) {
-			entry := &EntryNode{
-				Path:     filepath.Clean(path),
-				FileInfo: info,
-				Parent:   n,
-			}
-
-			n.children = append(n.children, entry)
-		}
-
-		return nil
-	})
-
+	// Use os.ReadDir instead of filepath.Walk since we only want direct children.
+	// It is much faster and returns entries already sorted alphabetically.
+	entries, err := os.ReadDir(n.Path)
 	if err != nil {
 		return err
 	}
+
+	var newChildren []*EntryNode
+
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			log.Println("Skipping unreadable file: ", entry.Name(), err)
+			continue
+		}
+
+		if filterFunc != nil && !filterFunc(info) {
+			continue
+		}
+
+		name := entry.Name()
+
+		// Reconcile: Keep existing, or create new
+		if existingNode, exists := existingNodes[name]; exists {
+			// Update the FileInfo in case metadata (like size or mod time) changed
+			existingNode.FileInfo = info
+			newChildren = append(newChildren, existingNode)
+
+			// Remove from the map so we know it was processed
+			delete(existingNodes, name)
+		} else {
+			newChildren = append(newChildren, &EntryNode{
+				Path:     filepath.Join(n.Path, name),
+				FileInfo: info,
+				Parent:   n,
+			})
+		}
+	}
+
+	// Any node left in the 'existingNodes' map is implicitly dropped
+	// because it no longer exists on disk and wasn't added to newChildren.
+	n.children = newChildren
 
 	return nil
 }
