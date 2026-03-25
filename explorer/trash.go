@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build !windows && !darwin && !linux
+// +build !windows,!darwin,!linux
 
 package explorer
 
@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 )
 
@@ -45,19 +44,10 @@ func throwToTrash(path string) error {
 	return nil
 }
 
-func getTrashFolder() (string, error) {
-	switch runtime.GOOS {
-	case "darwin", "ios":
-		return appleTrashDir()
-	default:
-		return unixTrashDir()
-	}
-}
-
 // According to Freedesktop.org specifications, the "home trash" directory
 // is at $XDG_DATA_HOME/Trash, and $XDG_DATA_HOME in turn defaults to $HOME/.local/share.
 // Refs: https://specifications.freedesktop.org/basedir-spec/latest/
-func unixTrashDir() (string, error) {
+func getTrashFolder() (string, error) {
 	if xdgHome := os.Getenv("XDG_DATA_HOME"); xdgHome != "" {
 		trashDir := filepath.Join(xdgHome, "Trash")
 		err := checkDirExists(trashDir)
@@ -73,21 +63,6 @@ func unixTrashDir() (string, error) {
 	}
 
 	trashDir := filepath.Join(home, ".local/share/Trash")
-	err = checkDirExists(trashDir)
-	if err != nil {
-		return "", err
-	}
-
-	return trashDir, nil
-}
-
-func appleTrashDir() (string, error) {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	trashDir := filepath.Join(dir, ".Trash")
 	err = checkDirExists(trashDir)
 	if err != nil {
 		return "", err
