@@ -1,7 +1,7 @@
 //go:build !windows && !darwin && !linux
 // +build !windows,!darwin,!linux
 
-package explorer
+package trash
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func throwToTrash(path string) error {
+func ThrowToTrash(path string) error {
 	trashDir, err := getTrashFolder()
 	if err != nil {
 		return err

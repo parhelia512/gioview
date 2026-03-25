@@ -1,4 +1,4 @@
-package explorer
+package trash
 
 import (
 	"fmt"
@@ -42,7 +42,7 @@ func shFileOperation(op *SHFILEOPSTRUCT) error {
 	return nil
 }
 
-// throwToTrash moves the specified file or directory to the Windows Recycle Bin.
+// ThrowToTrash moves the specified file or directory to the Windows Recycle Bin.
 //
 // This function takes the path of a file or directory as an argument,
 // converts it to an absolute path, and then moves it to the Windows
@@ -65,7 +65,7 @@ func shFileOperation(op *SHFILEOPSTRUCT) error {
 //     process (e.g., if the file does not exist or the move fails),
 //     an error will be returned explaining the reason for failure,
 //     including any relevant error codes from the Windows API.
-func throwToTrash(path string) error {
+func ThrowToTrash(path string) error {
 	// Get the absolute file path of delete file
 	absPath, err := filepath.Abs(path)
 	if err != nil {

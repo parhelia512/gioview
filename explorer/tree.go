@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+
+	"github.com/oligo/gioview/explorer/internal/trash"
 )
 
 type NodeKind uint8
@@ -310,7 +312,7 @@ func (n *EntryNode) Delete() error {
 		return errors.New("cannot update name of root dir")
 	}
 
-	err := throwToTrash(n.Path)
+	err := trash.ThrowToTrash(n.Path)
 	if err != nil {
 		return err
 	}
