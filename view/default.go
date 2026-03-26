@@ -82,10 +82,6 @@ func (vm *defaultViewManager) CurrentViewIndex() int {
 	return vm.currentTabIdx
 }
 
-// func (vm *defaultViewManager) Register(vw View) error {
-// 	return vm.RegisterWithProvider(Provide(vw))
-// }
-
 func (vm *defaultViewManager) Register(ID ViewID, provider ViewProvider) error {
 	vm.mu.Lock()
 	defer vm.mu.Unlock()
@@ -165,13 +161,27 @@ func (vm *defaultViewManager) RequestSwitch(intent Intent) error {
 
 	err := targetView.OnNavTo(intent)
 	if err != nil {
-		stack.Pop()
+		vm.revertPushToStack(stack)
 		return fmt.Errorf("error handling intent: %w", err)
 	}
 
 	location := intent.Location()
 	log.Printf("switching to %s", location.String())
 	return nil
+}
+
+func (vm *defaultViewManager) revertPushToStack(stack *ViewStack) {
+	stack.Pop()
+	// If stack is empty after pop, remove the entire tab
+	if stack.Depth() == 0 {
+		idx := slices.Index(vm.stacks, stack)
+		if idx >= 0 {
+			vm.stacks = slices.Delete(vm.stacks, idx, idx+1)
+			if vm.currentTabIdx >= idx && vm.currentTabIdx > 0 {
+				vm.currentTabIdx--
+			}
+		}
+	}
 }
 
 // route the intent to the proper viewstack/tab by intent.URL(). Note that this
@@ -239,7 +249,10 @@ func (vm *defaultViewManager) route(intent *Intent) *ViewStack {
 func (vm *defaultViewManager) OpenedViews() []View {
 	views := make([]View, len(vm.stacks))
 	for idx, stack := range vm.stacks {
-		views[idx] = stack.Peek()
+		view := stack.Peek()
+		if view != nil {
+			views[idx] = view
+		}
 	}
 
 	return views
@@ -252,7 +265,7 @@ func (vm *defaultViewManager) CloseTab(idx int) {
 
 	stack := vm.stacks[idx]
 	stack.Clear()
-	vm.stacks = slices.Delete[[]*ViewStack, *ViewStack](vm.stacks, idx, idx+1)
+	vm.stacks = slices.Delete(vm.stacks, idx, idx+1)
 	if vm.currentTabIdx >= idx && vm.currentTabIdx > 0 {
 		vm.currentTabIdx -= 1
 	}
