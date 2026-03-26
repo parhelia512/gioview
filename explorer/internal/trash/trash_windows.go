@@ -3,7 +3,6 @@ package trash
 import (
 	"fmt"
 	"path/filepath"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -20,24 +19,25 @@ const (
 
 // SHFILEOPSTRUCT represents the structure used in SHFileOperationW.
 type SHFILEOPSTRUCT struct {
-	WFunc             uint32
-	PFrom             *uint16
-	PTo               *uint16
-	FFlags            uint16
-	AnyOps            bool
+	HWND              uintptr
+	WFunc             uintptr
+	PFrom             uintptr
+	PTo               uintptr
+	FFlags            uintptr
+	AnyOps            uintptr
 	HNameMap          uintptr
-	LpszProgressTitle *uint16
+	LpszProgressTitle uintptr
 }
 
 var (
-	shell32              = syscall.NewLazyDLL("shell32.dll")
+	shell32              = windows.NewLazyDLL("shell32.dll")
 	procSHFileOperationW = shell32.NewProc("SHFileOperationW")
 )
 
 func shFileOperation(op *SHFILEOPSTRUCT) error {
-	ret, _, _ := procSHFileOperationW.Call(uintptr(unsafe.Pointer(op)))
+	ret, _, err := procSHFileOperationW.Call(uintptr(unsafe.Pointer(op)))
 	if ret != 0 {
-		return fmt.Errorf("failed to move file to Recycle Bin, error code: %d", ret)
+		return fmt.Errorf("failed to move file to Recycle Bin, error code: %d, err: %v", ret, err)
 	}
 	return nil
 }
@@ -72,15 +72,21 @@ func ThrowToTrash(path string) error {
 		return err
 	}
 
-	wPathPtr, err := windows.UTF16PtrFromString(absPath + "\x00")
+	pFormData := make([]uint16, 0) // multiple files can be supported
+	wPath, err := windows.UTF16FromString(absPath)
 	if err != nil {
 		return err
 	}
 
+	pFormData = append(pFormData, wPath...)
+	pFormData = append(pFormData, 0)
+	title := []uint16{0, 0}
+
 	op := &SHFILEOPSTRUCT{
-		WFunc:  FO_DELETE,
-		PFrom:  wPathPtr,
-		FFlags: FOF_ALLOWUNDO | FOF_NOCONFIRMATION,
+		WFunc:             FO_DELETE,
+		PFrom:             uintptr(unsafe.Pointer(&pFormData[0])),
+		FFlags:            FOF_ALLOWUNDO | FOF_NOCONFIRMATION,
+		LpszProgressTitle: uintptr(unsafe.Pointer(&title[0])),
 	}
 
 	return shFileOperation(op)
