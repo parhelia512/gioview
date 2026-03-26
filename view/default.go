@@ -162,7 +162,7 @@ func (vm *defaultViewManager) RequestSwitch(intent Intent) error {
 	err := targetView.OnNavTo(intent)
 	if err != nil {
 		vm.revertPushToStack(stack)
-		return fmt.Errorf("error handling intent: %w", err)
+		return err
 	}
 
 	location := intent.Location()
