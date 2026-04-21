@@ -389,7 +389,7 @@ func (p *bottomPanel) layoutSaveFileForm(gtx C, th *theme.Theme) D {
 		layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 		layout.Rigid(func(gtx C) D {
 			p.saveFileInput.SingleLine = true
-			p.saveFileInput.LabelOption = gvwidget.LabelOption{Alignment: gvwidget.Hidden}
+			p.saveFileInput.LabelOption = gvwidget.LabelOption{}
 			p.saveFileInput.Padding = unit.Dp(6)
 			return p.saveFileInput.Layout(gtx, th, "")
 		}),
@@ -413,7 +413,7 @@ func (p *bottomPanel) layoutAddFolderForm(gtx C, th *theme.Theme) D {
 
 			gtx.Constraints.Max.X = gtx.Dp(unit.Dp(250))
 			p.addFolderInput.SingleLine = true
-			p.addFolderInput.LabelOption = gvwidget.LabelOption{Alignment: gvwidget.Hidden}
+			p.addFolderInput.LabelOption = gvwidget.LabelOption{}
 			p.addFolderInput.Padding = unit.Dp(6)
 			return p.addFolderInput.Layout(gtx, th, "")
 		}),

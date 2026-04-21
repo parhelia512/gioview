@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strconv"
 
+	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/event"
 	"gioui.org/io/input"
@@ -35,14 +36,18 @@ const (
 	Top LabelAlignment = iota
 	Left
 	Right
-	Hidden
 )
 
 type LabelOption struct {
 	Alignment LabelAlignment
-	Ratio     float32
-	// Space between laben and input box
+	// The max horizontal space the label occupies. Only valid
+	// for Left or Right Alignment.
+	MaxWidth unit.Dp
+
+	// Space between label and input box
 	Padding unit.Dp
+
+	BoldText bool
 }
 
 // Another TextField implementation with the following features:
@@ -61,6 +66,9 @@ type TextField struct {
 	// Label alignment option
 	LabelOption LabelOption
 
+	// Label text describes the TextField. Its location is dependent
+	// on the LabelAlignment of LabelOption.
+	Label string
 	// Helper text to give additional context to a field.
 	HelperText string
 	// The maximum number of characters the text input will allow.
@@ -68,6 +76,8 @@ type TextField struct {
 	MaxChars int
 	// Mask replaces the visual display of each rune in the contents with the given rune.
 	Mask rune
+
+	ErrorColor color.NRGBA
 
 	// Leading appears before the content of the text input.
 	Leading layout.Widget
@@ -105,10 +115,7 @@ func (in *TextField) init() {
 		in.MaxChars = 0
 	}
 
-	if in.LabelOption.Ratio <= 0 {
-		in.LabelOption.Ratio = 0.25
-	}
-	if in.LabelOption.Padding <= 0 {
+	if in.LabelOption.Padding < 0 {
 		in.LabelOption.Padding = unit.Dp(12)
 	}
 
@@ -125,6 +132,10 @@ func (in *TextField) init() {
 	}
 	if in.Mask != in.editor.Mask {
 		in.editor.Mask = in.Mask
+	}
+
+	if in.ErrorColor == (color.NRGBA{}) {
+		in.ErrorColor = color.NRGBA{R: 200, A: 255}
 	}
 
 	// Enable submit if editor is single line.
@@ -235,144 +246,211 @@ func (in *TextField) Layout(gtx layout.Context, th *theme.Theme, hint string) la
 }
 
 func (in *TextField) layout(gtx layout.Context, th *theme.Theme, hint string) layout.Dimensions {
-	if in.LabelOption.Alignment != Left && in.LabelOption.Alignment != Right {
-		return in.layout2(gtx, th, hint)
+	switch in.LabelOption.Alignment {
+	case Left, Right:
+		return in.layoutHorizontal(gtx, th, hint)
+	case Top:
+		return in.layoutVertical(gtx, th, hint)
 	}
 
-	weight := in.LabelOption.Ratio
-	if hint == "" {
-		weight = 0
+	return D{}
+}
+
+func (in *TextField) layoutHorizontal(gtx layout.Context, th *theme.Theme, hint string) layout.Dimensions {
+	labelPadding := in.LabelOption.Padding
+	if in.Label == "" {
+		labelPadding = 0
 	}
 
 	var direction layout.Direction
-	if in.LabelOption.Alignment == Left {
+	switch in.LabelOption.Alignment {
+	case Left:
 		direction = layout.W
-	} else if in.LabelOption.Alignment == Right {
+	case Right:
 		direction = layout.E
+	default:
+		direction = layout.W
+	}
+
+	layoutLabel := func(gtx C) D {
+		if in.Label == "" {
+			return D{}
+		}
+
+		if in.LabelOption.MaxWidth > 0 {
+			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(in.LabelOption.MaxWidth))
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		}
+
+		return direction.Layout(gtx, func(gtx C) D {
+			label := material.Caption(th.Theme, in.Label)
+			if in.LabelOption.BoldText {
+				label.Font.Weight = font.Bold
+			}
+			return label.Layout(gtx)
+		})
+	}
+
+	measureLabel := func(gtx C) D {
+		if in.Label == "" {
+			return D{}
+		}
+
+		macro := op.Record(gtx.Ops)
+		dims := layoutLabel(gtx)
+		_ = macro.Stop()
+		return dims
 	}
 
 	return layout.Flex{
-		Axis:      layout.Horizontal,
-		Alignment: layout.Middle,
-	}.Layout(gtx,
-		layout.Flexed(weight, func(gtx C) D {
-			if hint == "" {
-				return D{}
-			}
-
-			return direction.Layout(gtx, func(gtx C) D {
-				label := material.Label(th.Theme, th.TextSize, hint)
-				// label.Color = in.border.Color
-				return label.Layout(gtx)
-			})
-
-		}),
-		layout.Rigid(layout.Spacer{Width: in.LabelOption.Padding}.Layout),
-		layout.Flexed(1-weight, func(gtx C) D {
-			return in.layout2(gtx, th, hint)
-		}),
-	)
-}
-
-func (in *TextField) layout2(gtx layout.Context, th *theme.Theme, hint string) layout.Dimensions {
-	return layout.Flex{
 		Axis: layout.Vertical,
 	}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if hint == "" || in.LabelOption.Alignment != Top {
-				return layout.Dimensions{}
-			}
-
-			return layout.Inset{
-				Bottom: unit.Dp(4),
-			}.Layout(gtx, func(gtx C) D {
-				label := material.Label(th.Theme, th.TextSize*0.8, hint)
-				label.Color = in.border.Color
-				return label.Layout(gtx)
-			})
+		layout.Rigid(func(gtx C) D {
+			return layout.Flex{
+				Axis:      layout.Horizontal,
+				Alignment: layout.Middle,
+			}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					return layoutLabel(gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: labelPadding}.Layout),
+				layout.Rigid(func(gtx C) D {
+					return in.layoutMain(gtx, th, hint)
+				}),
+			)
 
 		}),
-
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			border := widget.Border{
-				Color:        in.border.Color,
-				Width:        in.border.Thickness,
-				CornerRadius: in.Radius,
-			}
-
-			return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(in.Padding).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{
-						Axis:      layout.Horizontal,
-						Alignment: layout.Middle,
-					}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if in.Leading != nil {
-								return layout.Inset{Right: in.Padding}.Layout(gtx, in.Leading)
-							}
-							return layout.Dimensions{}
-						}),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							ed := material.Editor(th.Theme, &in.editor, hint)
-							ed.HintColor = misc.WithAlpha(th.Fg, 0xb6)
-							return ed.Layout(gtx)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if in.MaxChars <= 0 {
-								return layout.Dimensions{}
-							}
-							return layout.Inset{
-								Left: in.Padding,
-							}.Layout(
-								gtx,
-								func(gtx layout.Context) layout.Dimensions {
-									count := material.Label(
-										th.Theme,
-										th.TextSize*0.9,
-										strconv.Itoa(in.editor.Len())+"/"+strconv.Itoa(int(in.MaxChars)),
-									)
-									count.Color = misc.WithAlpha(th.Fg, 0xb6)
-									return count.Layout(gtx)
-								},
-							)
-						}),
-
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if in.Trailing != nil && in.state >= activated {
-								return layout.Inset{Left: in.Padding}.Layout(gtx, in.Trailing)
-							}
-							return layout.Dimensions{}
-						}),
-					)
-				})
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if in.HelperText == "" && in.errorMsg == "" {
-				return layout.Dimensions{}
-			}
-
-			helper := in.errorMsg
-			helperColor := color.NRGBA{R: 200, A: 255}
-			if helper == "" {
-				helper = in.HelperText
-				helperColor = misc.WithAlpha(th.Fg, 128)
-			}
-
-			return layout.Inset{
-				Top:  unit.Dp(4),
-				Left: unit.Dp(10),
-			}.Layout(
-				gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					helper := material.Label(th.Theme, th.TextSize*0.9, helper)
-					helper.Color = helperColor
-					return helper.Layout(gtx)
-				},
+		layout.Rigid(func(gtx C) D {
+			return layout.Flex{
+				Axis: layout.Horizontal,
+			}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					dims := measureLabel(gtx)
+					return D{Size: image.Pt(dims.Size.X, 0)}
+				}),
+				layout.Rigid(layout.Spacer{Width: labelPadding}.Layout),
+				layout.Rigid(func(gtx C) D {
+					return in.layoutHelper(gtx, th)
+				}),
 			)
 		}),
 	)
 
+}
+
+func (in *TextField) layoutVertical(gtx layout.Context, th *theme.Theme, hint string) layout.Dimensions {
+	labelPadding := in.LabelOption.Padding
+	if in.Label == "" {
+		labelPadding = 0
+	}
+
+	return layout.Flex{
+		Axis: layout.Vertical,
+	}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if in.Label == "" || in.LabelOption.Alignment != Top {
+				return layout.Dimensions{}
+			}
+
+			label := material.Caption(th.Theme, in.Label)
+			if in.LabelOption.BoldText {
+				label.Font.Weight = font.Bold
+			}
+			return label.Layout(gtx)
+
+		}),
+
+		layout.Rigid(layout.Spacer{Height: labelPadding}.Layout),
+
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return in.layoutMain(gtx, th, hint)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return in.layoutHelper(gtx, th)
+		}),
+	)
+
+}
+
+func (in *TextField) layoutMain(gtx layout.Context, th *theme.Theme, hint string) layout.Dimensions {
+	border := widget.Border{
+		Color:        in.border.Color,
+		Width:        in.border.Thickness,
+		CornerRadius: in.Radius,
+	}
+
+	return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(in.Padding).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{
+				Axis:      layout.Horizontal,
+				Alignment: layout.Middle,
+			}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if in.Leading != nil {
+						return layout.Inset{Right: in.Padding}.Layout(gtx, in.Leading)
+					}
+					return layout.Dimensions{}
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					ed := material.Editor(th.Theme, &in.editor, hint)
+					ed.HintColor = misc.WithAlpha(th.Fg, 0x60)
+					return ed.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if in.MaxChars <= 0 {
+						return layout.Dimensions{}
+					}
+					return layout.Inset{
+						Left: in.Padding,
+					}.Layout(
+						gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							count := material.Label(
+								th.Theme,
+								th.TextSize*0.9,
+								strconv.Itoa(in.editor.Len())+"/"+strconv.Itoa(int(in.MaxChars)),
+							)
+							count.Color = misc.WithAlpha(th.Fg, 0xb6)
+							return count.Layout(gtx)
+						},
+					)
+				}),
+
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if in.Trailing != nil && in.state >= activated {
+						return layout.Inset{Left: in.Padding}.Layout(gtx, in.Trailing)
+					}
+					return layout.Dimensions{}
+				}),
+			)
+		})
+	})
+
+}
+
+func (in *TextField) layoutHelper(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+	if in.HelperText == "" && in.errorMsg == "" {
+		return layout.Dimensions{}
+	}
+
+	helper := in.errorMsg
+	helperColor := in.ErrorColor
+	if helper == "" {
+		helper = in.HelperText
+		helperColor = misc.WithAlpha(th.Fg, 0xb6)
+	}
+
+	return layout.Inset{
+		Top:  unit.Dp(4),
+		Left: in.Padding,
+	}.Layout(
+		gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			helper := material.Label(th.Theme, th.TextSize*0.9, helper)
+			helper.Color = helperColor
+			return helper.Layout(gtx)
+		},
+	)
 }
 
 func (in *TextField) State() *widget.Editor {

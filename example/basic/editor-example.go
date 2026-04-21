@@ -58,9 +58,14 @@ func (vw *EditorExample) Layout(gtx layout.Context, th *theme.Theme) layout.Dime
 					vw.patternInput.ClearError()
 				}
 			}
+			vw.patternInput.Label = "Search Pattern"
+			vw.patternInput.LabelOption.Alignment = widget.Top
+			vw.patternInput.LabelOption.BoldText = true
+			vw.patternInput.LabelOption.Padding = unit.Dp(8)
 			vw.patternInput.Padding = unit.Dp(8)
 			vw.patternInput.HelperText = "Illustrating colored text painting in text editor."
 			vw.patternInput.MaxChars = 64
+			vw.patternInput.SetError("bad luck for you!")
 			return vw.patternInput.Layout(gtx, th, "Regex of substring hightlighted")
 		}),
 

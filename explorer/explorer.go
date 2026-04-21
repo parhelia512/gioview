@@ -584,7 +584,7 @@ func (ep *entryPanel) Layout(gtx C, th *theme.Theme, entry *EntryNode) D {
 				Right: unit.Dp(4),
 			}.Layout(gtx, func(gtx C) D {
 				ep.searchInput.SingleLine = true
-				ep.searchInput.LabelOption = gvwidget.LabelOption{Alignment: gvwidget.Hidden}
+				ep.searchInput.LabelOption = gvwidget.LabelOption{}
 				ep.searchInput.Padding = unit.Dp(4)
 				ep.searchInput.Leading = func(gtx C) D {
 					return misc.Icon{Icon: searchIcon, Size: unit.Dp(18), Color: misc.WithAlpha(th.Fg, 0xb0)}.Layout(gtx, th)
