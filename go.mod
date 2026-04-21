@@ -1,18 +1,18 @@
 module github.com/oligo/gioview
 
-go 1.23.1
+go 1.25.5
 
 require (
-	gioui.org v0.8.0
-	gioui.org/x v0.8.1
+	gioui.org v0.9.0
+	gioui.org/x v0.9.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/go-text/typesetting v0.2.1
+	github.com/go-text/typesetting v0.3.0
 	github.com/shirou/gopsutil/v4 v4.24.9
-	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
-	golang.org/x/exp/shiny v0.0.0-20240707233637-46b078467d37
-	golang.org/x/image v0.18.0
-	golang.org/x/sys v0.25.0
-	golang.org/x/text v0.16.0
+	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
+	golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0
+	golang.org/x/image v0.26.0
+	golang.org/x/sys v0.33.0
+	golang.org/x/text v0.24.0
 )
 
 require (
