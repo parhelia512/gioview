@@ -28,6 +28,10 @@ func (id ViewID) String() string {
 	return fmt.Sprintf("%s/%s", id.path, id.name)
 }
 
+// NewViewID constructs a ViewID from a name, and the caller's
+// function call path. The function call path is converted to a
+// URL like path. Please be sure to place the call of NewViewID
+// along with the view definition to get an accurate path.
 func NewViewID(name string) ViewID {
 	pc, _, _, ok := runtime.Caller(1)
 	if ok {

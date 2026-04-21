@@ -11,6 +11,10 @@ import (
 	"gioui.org/widget"
 )
 
+// ViewID encodes identity info for a view. Each view must
+// have a unique view ID so the view manager can route to
+// it based on the ViewID firstly. The path field is generated
+// based on the go package path, and convert to a URL like path.
 type ViewID struct {
 	name string
 	path string
@@ -37,14 +41,21 @@ type ViewAction struct {
 }
 
 type View interface {
-	Actions() []ViewAction
 	Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions
+	// OnNavTo is meant to be called to initialize the view. It is meant
+	// to be called by the ViewManager.
 	OnNavTo(intent Intent) error
+	// OnResume defines a callback to be called before it is visible to the user.
+	OnResume()
+	// OnPause defines a callback to be called before it is turning invisible to the user.
+	OnPause()
+	// OnFinish set the view to finished state and do some cleanup.
+	OnFinish()
+
 	ID() ViewID
 	Location() url.URL
 	Title() string
-	// set the view to finished state and do some cleanup ops.
-	OnFinish()
+
 	Finished() bool
 }
 

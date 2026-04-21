@@ -41,10 +41,13 @@ func (base *BaseView) OnNavTo(intent Intent) error {
 	return nil
 }
 
+func (base *BaseView) OnResume() {}
+
+func (base *BaseView) OnPause() {}
+
 func (base *BaseView) OnFinish() {
 	base.location = nil
 	base.finished = true
-	return
 }
 
 func (base *BaseView) Finished() bool {

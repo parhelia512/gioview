@@ -115,7 +115,12 @@ func (vm *defaultViewManager) NavBack() View {
 
 	vw := stack.Pop()
 	vw.OnFinish()
-	return stack.Peek()
+
+	topVw := stack.Peek()
+	if topVw != nil {
+		topVw.OnResume()
+	}
+	return topVw
 }
 
 func (vm *defaultViewManager) HasPrev() bool {
@@ -141,6 +146,9 @@ func (vm *defaultViewManager) RequestSwitch(intent Intent) error {
 	if !ok {
 		return fmt.Errorf("no target view found: %v", intent.Target)
 	}
+
+	// Pause the current view by calling its OnPause callback.
+	vm.pauseCurrentView()
 
 	var targetView View
 	stack := vm.route(&intent)
@@ -277,6 +285,24 @@ func (vm *defaultViewManager) SwitchTab(idx int) {
 	}
 
 	vm.currentTabIdx = idx
+
+	stack := vm.stacks[vm.currentTabIdx]
+	vw := stack.Peek()
+	if vw != nil {
+		vw.OnResume()
+	}
+}
+
+func (vm *defaultViewManager) pauseCurrentView() {
+	if vm.currentTabIdx >= len(vm.stacks) || vm.currentTabIdx < 0 {
+		return
+	}
+
+	stack := vm.stacks[vm.currentTabIdx]
+	vw := stack.Peek()
+	if vw != nil {
+		vw.OnPause()
+	}
 }
 
 func (vm *defaultViewManager) Invalidate() {
